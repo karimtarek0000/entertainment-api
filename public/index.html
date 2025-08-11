@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Entertainment API</title>
+    <style>
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+          sans-serif;
+        max-width: 800px;
+        margin: 0 auto;
+        padding: 2rem;
+        line-height: 1.6;
+        color: #333;
+      }
+      .header {
+        text-align: center;
+        margin-bottom: 2rem;
+      }
+      .api-endpoint {
+        background: #f5f5f5;
+        padding: 0.5rem 1rem;
+        border-radius: 4px;
+        font-family: monospace;
+        margin: 0.5rem 0;
+      }
+      .section {
+        margin: 2rem 0;
+      }
+      .endpoint-list {
+        list-style: none;
+        padding: 0;
+      }
+      .endpoint-list li {
+        margin: 0.5rem 0;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="header">
+      <h1>🎬 Entertainment API</h1>
+      <p>A JSON Server API for entertainment data</p>
+    </div>
+
+    <div class="section">
+      <h2>API Base URL</h2>
+      <div class="api-endpoint" id="baseUrl">Loading...</div>
+    </div>
+
+    <div class="section">
+      <h2>Available Endpoints</h2>
+      <ul class="endpoint-list">
+        <li><code>GET /api/users</code> - Get all users</li>
+        <li><code>GET /api/users/:id</code> - Get user by ID</li>
+        <li><code>GET /api/movies</code> - Get all movies</li>
+        <li><code>GET /api/movies/:id</code> - Get movie by ID</li>
+        <li><code>GET /api/tvSeries</code> - Get all TV series</li>
+        <li><code>GET /api/tvSeries/:id</code> - Get TV series by ID</li>
+      </ul>
+    </div>
+
+    <div class="section">
+      <h2>Query Parameters</h2>
+      <ul>
+        <li>
+          <strong>Filtering:</strong> <code>?category=trending</code>,
+          <code>?year=2024</code>
+        </li>
+        <li><strong>Sorting:</strong> <code>?_sort=year&_order=desc</code></li>
+        <li><strong>Pagination:</strong> <code>?_page=1&_limit=10</code></li>
+      </ul>
+    </div>
+
+    <div class="section">
+      <h2>Example Requests</h2>
+      <ul class="endpoint-list">
+        <li><a href="/api/movies" target="_blank">/api/movies</a></li>
+        <li>
+          <a href="/api/movies?category=trending" target="_blank"
+            >/api/movies?category=trending</a
+          >
+        </li>
+        <li><a href="/api/users" target="_blank">/api/users</a></li>
+        <li><a href="/api/tvSeries" target="_blank">/api/tvSeries</a></li>
+      </ul>
+    </div>
+
+    <script>
+      // Set the base URL dynamically
+      document.getElementById('baseUrl').textContent =
+        window.location.origin + '/api'
+    </script>
+  </body>
+</html>

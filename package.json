@@ -6,7 +6,7 @@
     "dev": "json-server --watch db.json --port 3000",
     "server": "json-server --watch db.json",
     "start": "json-server db.json",
-    "build": "echo 'Build complete'",
+    "build": "mkdir -p public && cp index.html public/index.html",
     "vercel-dev": "vercel dev"
   },
   "keywords": [],
