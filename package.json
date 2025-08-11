@@ -3,7 +3,11 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "server": "json-server --watch db.json"
+    "dev": "json-server --watch db.json --port 3000",
+    "server": "json-server --watch db.json",
+    "start": "json-server db.json",
+    "build": "echo 'Build complete'",
+    "vercel-dev": "vercel dev"
   },
   "keywords": [],
   "author": "",
@@ -11,5 +15,8 @@
   "description": "",
   "dependencies": {
     "json-server": "^1.0.0-beta.3"
+  },
+  "devDependencies": {
+    "vercel": "^33.0.0"
   }
 }
