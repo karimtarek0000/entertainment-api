@@ -36,10 +36,11 @@ app.use((req, res, next) => {
   next()
 })
 
-// API routes
-app.all('/:resource?/:id?', (req, res) => {
+// API routes with /api prefix
+app.all('/api/:resource?/:id?', (req, res) => {
   const { url, method, body } = req
-  const urlParts = url.split('?')[0].split('/').filter(Boolean)
+  // Remove /api from URL parts
+  const urlParts = url.split('?')[0].split('/').filter(Boolean).slice(1) // slice(1) removes 'api'
 
   try {
     const db = readDB()
@@ -64,8 +65,8 @@ app.all('/:resource?/:id?', (req, res) => {
         } else {
           let data = [...db[resource]]
 
-          // Basic filtering, sorting, pagination (your existing logic)
-          const queryParams = new URL(url, `http://${req.headers.host}`).searchParams
+          // Basic filtering, sorting, pagination
+          const queryParams = new URL(url, `http://${req.headers.host || 'localhost'}`).searchParams
           
           for (const [key, value] of queryParams.entries()) {
             if (key !== '_limit' && key !== '_page' && key !== '_sort' && key !== '_order') {
@@ -123,4 +124,53 @@ app.all('/:resource?/:id?', (req, res) => {
       const [resource, id] = urlParts
 
       if (db[resource]) {
-        const
+        const itemIndex = db[resource].findIndex(
+          item => item.id === id || item.id === parseInt(id),
+        )
+        if (itemIndex !== -1) {
+          if (method === 'PUT') {
+            db[resource][itemIndex] = { id, ...body }
+          } else {
+            db[resource][itemIndex] = { ...db[resource][itemIndex], ...body }
+          }
+          writeDB(db)
+          return res.json(db[resource][itemIndex])
+        } else {
+          return res.status(404).json({ error: 'Item not found' })
+        }
+      } else {
+        return res.status(404).json({ error: 'Resource not found' })
+      }
+    }
+
+    if (method === 'DELETE') {
+      const [resource, id] = urlParts
+
+      if (db[resource]) {
+        const itemIndex = db[resource].findIndex(
+          item => item.id === id || item.id === parseInt(id),
+        )
+        if (itemIndex !== -1) {
+          const deletedItem = db[resource].splice(itemIndex, 1)[0]
+          writeDB(db)
+          return res.json(deletedItem)
+        } else {
+          return res.status(404).json({ error: 'Item not found' })
+        }
+      } else {
+        return res.status(404).json({ error: 'Resource not found' })
+      }
+    }
+
+    res.status(405).json({ error: 'Method not allowed' })
+  } catch (error) {
+    console.error('API Error:', error)
+    res.status(500).json({ error: 'Internal server error' })
+  }
+})
+
+// Start server on 0.0.0.0 for Railway
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`Server running on port ${PORT}`)
+  console.log(`API available at: http://0.0.0.0:${PORT}/api`)
+})
