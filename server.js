@@ -77,17 +77,29 @@ function applySortPaginate(data, queryParams) {
 
 // Unified route
 app.all('/:resource?/:id?/:subresource?', (req, res) => {
-  const { url, method, body } = req
-  const urlParts = url.split('?')[0].split('/').filter(Boolean)
+  const { method, body } = req
+  const urlParts = req.path.split('/').filter(Boolean)
+
   try {
     const db = readDB()
 
     if (method === 'GET') {
-      if (urlParts.length === 0) return res.json(db)
+      const queryParams = new URLSearchParams(req.query || {})
+
+      // /?title=...
+      if (urlParts.length === 0) {
+        const result = {}
+        for (const [resource, arr] of Object.entries(db)) {
+          if (!Array.isArray(arr)) continue
+          let data = [...arr]
+          data = filterCollection(data, queryParams)
+          data = applySortPaginate(data, queryParams)
+          result[resource] = data
+        }
+        return res.json(result)
+      }
 
       const [resource, id, subresource] = urlParts
-      const queryParams = new URLSearchParams(url.split('?')[1] || '')
-
       if (!db[resource]) return res.status(404).json({ error: 'Resource not found' })
 
       // /users/:id/bookmarks
@@ -118,7 +130,6 @@ app.all('/:resource?/:id?/:subresource?', (req, res) => {
           Array.isArray(u.bookmarks) &&
           u.bookmarks.some(b => b.title && b.title.toLowerCase().startsWith(q))
         )
-        // Remove so generic filter doesn't apply title again on top-level user fields
         queryParams.delete('title')
       }
 
