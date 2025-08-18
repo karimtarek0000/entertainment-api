@@ -1,25 +1,54 @@
-// ...existing code...
-// Read and write database functions
+const express = require('express')
+const fs = require('fs')
+const path = require('path')
+
+const app = express()
+const PORT = process.env.PORT || 8080
+
+// Middleware
+app.use(express.json())
+
+// DB helpers
 const dbPath = path.join(process.cwd(), 'db.json')
 
-// Helper: determine if a value (string) starts with query (case-insensitive)
-const startsWithCI = (field, value) =>
-  typeof field === 'string' &&
-  field.toLowerCase().startsWith(value.toLowerCase())
+const readDB = () => {
+  try {
+    return JSON.parse(fs.readFileSync(dbPath, 'utf8'))
+  } catch {
+    return {}
+  }
+}
 
-// Generic filter helper applied to any array of plain objects
+const writeDB = (data) => {
+  fs.writeFileSync(dbPath, JSON.stringify(data, null, 2))
+}
+
+// CORS
+app.use((req, res, next) => {
+  res.setHeader('Access-Control-Allow-Origin', '*')
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS')
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization')
+  if (req.method === 'OPTIONS') {
+    res.status(200).end()
+    return
+  }
+  next()
+})
+
+// Helpers
+const SPECIAL = new Set(['_limit','_page','_sort','_order'])
+
 function filterCollection(data, queryParams) {
-  const special = new Set(['_limit','_page','_sort','_order'])
-  for (const [key, rawValue] of queryParams.entries()) {
-    if (special.has(key)) continue
-    const value = rawValue.trim()
+  for (const [key, raw] of queryParams.entries()) {
+    if (SPECIAL.has(key)) continue
+    const value = raw.trim()
     if (value === '') continue
     data = data.filter(item => {
       if (!(key in item) || item[key] == null) return false
       const v = item[key]
       if (typeof v === 'string') {
         if (key === 'title') {
-          return startsWithCI(v, value)
+          return v.toLowerCase().startsWith(value.toLowerCase())
         }
         return v.toLowerCase().includes(value.toLowerCase())
       }
@@ -28,85 +57,118 @@ function filterCollection(data, queryParams) {
   }
   return data
 }
-// ...existing code...
+
+function applySortPaginate(data, queryParams) {
+  const sortBy = queryParams.get('_sort')
+  const order = (queryParams.get('_order') || 'asc').toLowerCase()
+  if (sortBy) {
+    data.sort((a, b) => {
+      if (a[sortBy] === b[sortBy]) return 0
+      return order === 'desc'
+        ? (a[sortBy] > b[sortBy] ? -1 : 1)
+        : (a[sortBy] > b[sortBy] ? 1 : -1)
+    })
+  }
+  const limit = parseInt(queryParams.get('_limit')) || data.length
+  const page = parseInt(queryParams.get('_page')) || 1
+  const start = (page - 1) * limit
+  return data.slice(start, start + limit)
+}
+
+// Unified route
 app.all('/:resource?/:id?/:subresource?', (req, res) => {
   const { url, method, body } = req
   const urlParts = url.split('?')[0].split('/').filter(Boolean)
-
   try {
     const db = readDB()
 
     if (method === 'GET') {
-      if (urlParts.length === 0) {
-        return res.json(db)
-      }
+      if (urlParts.length === 0) return res.json(db)
 
       const [resource, id, subresource] = urlParts
       const queryParams = new URLSearchParams(url.split('?')[1] || '')
 
-      if (db[resource]) {
-        // Nested bookmarks: /users/:id/bookmarks?title=d
-        if (id && subresource === 'bookmarks') {
-          const user = db[resource].find(
-            item => item.id === id || item.id === parseInt(id),
-          )
-          if (!user) {
-            return res.status(404).json({ error: 'User not found' })
-          }
+      if (!db[resource]) return res.status(404).json({ error: 'Resource not found' })
 
-            let bookmarks = Array.isArray(user.bookmarks) ? [...user.bookmarks] : []
+      // /users/:id/bookmarks
+      if (id && subresource === 'bookmarks') {
+        const user = db[resource].find(it => it.id === id || it.id === parseInt(id))
+        if (!user) return res.status(404).json({ error: 'User not found' })
+        let bookmarks = Array.isArray(user.bookmarks) ? [...user.bookmarks] : []
+        bookmarks = filterCollection(bookmarks, queryParams)
+        bookmarks = applySortPaginate(bookmarks, queryParams)
+        return res.json(bookmarks)
+      }
 
-            // Apply filters (prefix on title, includes on others)
-            bookmarks = filterCollection(bookmarks, queryParams)
+      // /resource/:id
+      if (id) {
+        const item = db[resource].find(it => it.id === id || it.id === parseInt(id))
+        if (!item) return res.status(404).json({ error: 'Item not found' })
+        return res.json(item)
+      }
 
-            // Sorting
-            const sortBy = queryParams.get('_sort')
-            const order = (queryParams.get('_order') || 'asc').toLowerCase()
-            if (sortBy) {
-              bookmarks.sort((a, b) => {
-                if (a[sortBy] === b[sortBy]) return 0
-                return order === 'desc'
-                  ? (a[sortBy] > b[sortBy] ? -1 : 1)
-                  : (a[sortBy] > b[sortBy] ? 1 : -1)
-              })
-            }
+      // /resource
+      let data = [...db[resource]]
 
-            // Pagination
-            const limit = parseInt(queryParams.get('_limit')) || bookmarks.length
-            const page = parseInt(queryParams.get('_page')) || 1
-            const start = (page - 1) * limit
-            const end = start + limit
-            return res.json(bookmarks.slice(start, end))
-        }
+      // Special: users?title= (search inside bookmarks' title)
+      const titleQ = queryParams.get('title')
+      if (resource === 'users' && titleQ && titleQ.trim() !== '') {
+        const q = titleQ.trim().toLowerCase()
+        data = data.filter(u =>
+          Array.isArray(u.bookmarks) &&
+          u.bookmarks.some(b => b.title && b.title.toLowerCase().startsWith(q))
+        )
+        // Remove so generic filter doesn't apply title again on top-level user fields
+        queryParams.delete('title')
+      }
 
-        if (id) {
-          const item = db[resource].find(
-            item => item.id === id || item.id === parseInt(id),
-          )
-          if (item) return res.json(item)
-          return res.status(404).json({ error: 'Item not found' })
-        }
+      data = filterCollection(data, queryParams)
+      data = applySortPaginate(data, queryParams)
+      return res.json(data)
+    }
 
-        // Collection listing with global prefix title search
-        let data = [...db[resource]]
+    if (method === 'POST') {
+      const [resource] = urlParts
+      if (!resource) return res.status(400).json({ error: 'Resource required' })
+      if (!db[resource]) db[resource] = []
+      const newItem = { id: `${resource}_${Date.now()}`, ...body }
+      db[resource].push(newItem)
+      writeDB(db)
+      return res.status(201).json(newItem)
+    }
 
-        // Special case: searching users by bookmark titles (?title=d)
-        const titleQuery = queryParams.get('title')
-        if (resource === 'users' && titleQuery && titleQuery.trim() !== '') {
-          const q = titleQuery.trim().toLowerCase()
-          data = data.filter(u =>
-            Array.isArray(u.bookmarks) &&
-            u.bookmarks.some(b => b.title && b.title.toLowerCase().startsWith(q))
-          )
-          // Remove 'title' from further generic filtering (already applied)
-          queryParams.delete('title')
-        }
+    if (method === 'PUT' || method === 'PATCH') {
+      const [resource, id] = urlParts
+      if (!db[resource]) return res.status(404).json({ error: 'Resource not found' })
+      const idx = db[resource].findIndex(it => it.id === id || it.id === parseInt(id))
+      if (idx === -1) return res.status(404).json({ error: 'Item not found' })
+      if (method === 'PUT') {
+        db[resource][idx] = { id: db[resource][idx].id, ...body }
+      } else {
+        db[resource][idx] = { ...db[resource][idx], ...body }
+      }
+      writeDB(db)
+      return res.json(db[resource][idx])
+    }
 
-        // Generic filtering
-        data = filterCollection(data, queryParams)
+    if (method === 'DELETE') {
+      const [resource, id] = urlParts
+      if (!db[resource]) return res.status(404).json({ error: 'Resource not found' })
+      const idx = db[resource].findIndex(it => it.id === id || it.id === parseInt(id))
+      if (idx === -1) return res.status(404).json({ error: 'Item not found' })
+      const deleted = db[resource].splice(idx, 1)[0]
+      writeDB(db)
+      return res.json(deleted)
+    }
 
-        // Sorting
-        const sortBy = queryParams.get('_sort')
-        const order = (queryParams.get('_order') || 'asc').toLowerCase()
-        if (sortBy) {
-          data.sort((a, b) =>
+    res.status(405).json({ error: 'Method not allowed' })
+  } catch (e) {
+    console.error('API Error:', e)
+    res.status(500).json({ error: 'Internal server error' })
+  }
+})
+
+// Start
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`Server running on port ${PORT}`)
+})
