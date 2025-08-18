@@ -37,7 +37,7 @@ app.use((req, res, next) => {
 })
 
 // API routes with /api prefix
-app.all('/api/:resource?/:id?', (req, res) => {
+app.all('/api/:resource?/:id?/:subresource?', (req, res) => {
   const { url, method, body } = req
   // Remove /api from URL parts
   const urlParts = url.split('?')[0].split('/').filter(Boolean).slice(1) // slice(1) removes 'api'
@@ -50,9 +50,67 @@ app.all('/api/:resource?/:id?', (req, res) => {
         return res.json(db)
       }
 
-      const [resource, id] = urlParts
+      const [resource, id, subresource] = urlParts
 
       if (db[resource]) {
+        if (id && subresource === 'bookmarks') {
+          // Handle /api/users/:id/bookmarks
+          const user = db[resource].find(
+            item => item.id === id || item.id === parseInt(id),
+          )
+          
+          if (!user) {
+            return res.status(404).json({ error: 'User not found' })
+          }
+
+          let bookmarks = user.bookmarks || []
+          
+          // Apply filtering to bookmarks
+          const queryParams = new URL(url, `http://${req.headers.host || 'localhost'}`).searchParams
+          
+          for (const [key, value] of queryParams.entries()) {
+            if (key !== '_limit' && key !== '_page' && key !== '_sort' && key !== '_order') {
+              bookmarks = bookmarks.filter(bookmark => {
+                if (key === 'title') {
+                  // If title is empty, don't filter
+                  if (value.trim() === '') {
+                    return true
+                  }
+                  return bookmark.title && bookmark.title.toLowerCase().startsWith(value.toLowerCase())
+                }
+                
+                if (typeof bookmark[key] === 'string') {
+                  if (value.trim() === '') {
+                    return true
+                  }
+                  return bookmark[key].toLowerCase().includes(value.toLowerCase())
+                }
+                return bookmark[key] == value
+              })
+            }
+          }
+
+          // Apply sorting, pagination
+          const sortBy = queryParams.get('_sort')
+          const order = queryParams.get('_order') || 'asc'
+          if (sortBy) {
+            bookmarks.sort((a, b) => {
+              if (order === 'desc') {
+                return b[sortBy] > a[sortBy] ? 1 : -1
+              }
+              return a[sortBy] > b[sortBy] ? 1 : -1
+            })
+          }
+
+          const limit = parseInt(queryParams.get('_limit')) || bookmarks.length
+          const page = parseInt(queryParams.get('_page')) || 1
+          const startIndex = (page - 1) * limit
+          const endIndex = startIndex + limit
+
+          bookmarks = bookmarks.slice(startIndex, endIndex)
+          return res.json(bookmarks)
+        }
+        
         if (id) {
           const item = db[resource].find(
             item => item.id === id || item.id === parseInt(id),
@@ -71,7 +129,37 @@ app.all('/api/:resource?/:id?', (req, res) => {
           for (const [key, value] of queryParams.entries()) {
             if (key !== '_limit' && key !== '_page' && key !== '_sort' && key !== '_order') {
               data = data.filter(item => {
+                // Special handling for searching bookmarks within users
+                if (resource === 'users' && key === 'title') {
+                  // If title is empty, don't filter
+                  if (value.trim() === '') {
+                    return true
+                  }
+                  
+                  // Search in user's bookmarks
+                  if (item.bookmarks && Array.isArray(item.bookmarks)) {
+                    return item.bookmarks.some(bookmark => 
+                      bookmark.title && 
+                      bookmark.title.toLowerCase().startsWith(value.toLowerCase())
+                    )
+                  }
+                  return false
+                }
+                
+                // Regular filtering for other resources
                 if (typeof item[key] === 'string') {
+                  // Handle starts-with search for title, but skip if value is empty
+                  if (key === 'title') {
+                    // If title is empty, don't filter (return all)
+                    if (value.trim() === '') {
+                      return true
+                    }
+                    return item[key].toLowerCase().startsWith(value.toLowerCase())
+                  }
+                  // Skip filtering if value is empty for other string fields
+                  if (value.trim() === '') {
+                    return true
+                  }
                   return item[key].toLowerCase().includes(value.toLowerCase())
                 }
                 return item[key] == value
