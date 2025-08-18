@@ -36,11 +36,11 @@ app.use((req, res, next) => {
   next()
 })
 
-// API routes with /api prefix
-app.all('/api/:resource?/:id?/:subresource?', (req, res) => {
+// API routes without /api prefix
+app.all('/:resource?/:id?/:subresource?', (req, res) => {
   const { url, method, body } = req
-  // Remove /api from URL parts
-  const urlParts = url.split('?')[0].split('/').filter(Boolean).slice(1) // slice(1) removes 'api'
+  // Get URL parts directly without removing /api
+  const urlParts = url.split('?')[0].split('/').filter(Boolean)
 
   try {
     const db = readDB()
@@ -54,7 +54,7 @@ app.all('/api/:resource?/:id?/:subresource?', (req, res) => {
 
       if (db[resource]) {
         if (id && subresource === 'bookmarks') {
-          // Handle /api/users/:id/bookmarks
+          // Handle /users/:id/bookmarks
           const user = db[resource].find(
             item => item.id === id || item.id === parseInt(id),
           )
@@ -260,5 +260,5 @@ app.all('/api/:resource?/:id?/:subresource?', (req, res) => {
 // Start server on 0.0.0.0 for Railway
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`Server running on port ${PORT}`)
-  console.log(`API available at: http://0.0.0.0:${PORT}/api`)
+  console.log(`API available at: http://0.0.0.0:${PORT}`)
 })
