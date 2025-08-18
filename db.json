@@ -27,7 +27,7 @@
       "description": "Paul Atreides unites with Chani and the Fremen while seeking revenge against the conspirators who destroyed his family.",
       "genre": ["Sci-Fi", "Adventure", "Drama"],
       "duration": "2h 46m",
-      "isBookmarked": true
+      "isBookmarked": false
     },
     {
       "id": "movie_2",
@@ -83,7 +83,7 @@
       "description": "John Wick uncovers a path to defeating The High Table. But before he can earn his freedom, Wick must face off against a new enemy.",
       "genre": ["Action", "Thriller", "Crime"],
       "duration": "2h 49m",
-      "isBookmarked": true
+      "isBookmarked": false
     },
     {
       "id": "movie_6",
@@ -181,7 +181,7 @@
       "description": "With Spider-Man's identity now revealed, Peter asks Doctor Strange for help.",
       "genre": ["Action", "Adventure", "Sci-Fi"],
       "duration": "2h 28m",
-      "isBookmarked": true
+      "isBookmarked": false
     },
     {
       "id": "movie_13",
@@ -265,7 +265,7 @@
       "description": "Aging archaeologist Indiana Jones races against time to retrieve a legendary artifact.",
       "genre": ["Action", "Adventure"],
       "duration": "2h 34m",
-      "isBookmarked": true
+      "isBookmarked": false
     },
     {
       "id": "movie_19",
@@ -395,7 +395,7 @@
       "genre": ["Drama", "Action", "Fantasy"],
       "seasons": 2,
       "episodes": 18,
-      "isBookmarked": true
+      "isBookmarked": false
     },
     {
       "id": "series_3",
@@ -485,7 +485,7 @@
       "genre": ["Action", "Adventure", "Drama"],
       "seasons": 3,
       "episodes": 24,
-      "isBookmarked": true
+      "isBookmarked": false
     },
     {
       "id": "series_9",
