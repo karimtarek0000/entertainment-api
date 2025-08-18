@@ -39,7 +39,6 @@ app.use((req, res, next) => {
 // API routes without /api prefix
 app.all('/:resource?/:id?/:subresource?', (req, res) => {
   const { url, method, body } = req
-  // Get URL parts directly without removing /api
   const urlParts = url.split('?')[0].split('/').filter(Boolean)
 
   try {
@@ -65,14 +64,14 @@ app.all('/:resource?/:id?/:subresource?', (req, res) => {
 
           let bookmarks = user.bookmarks || []
           
-          // Apply filtering to bookmarks
-          const queryParams = new URL(url, `http://${req.headers.host || 'localhost'}`).searchParams
+          // Parse query parameters
+          const queryParams = new URLSearchParams(url.split('?')[1] || '')
           
+          // Apply filtering to bookmarks
           for (const [key, value] of queryParams.entries()) {
             if (key !== '_limit' && key !== '_page' && key !== '_sort' && key !== '_order') {
               bookmarks = bookmarks.filter(bookmark => {
                 if (key === 'title') {
-                  // If title is empty, don't filter
                   if (value.trim() === '') {
                     return true
                   }
@@ -90,7 +89,7 @@ app.all('/:resource?/:id?/:subresource?', (req, res) => {
             }
           }
 
-          // Apply sorting, pagination
+          // Apply sorting and pagination
           const sortBy = queryParams.get('_sort')
           const order = queryParams.get('_order') || 'asc'
           if (sortBy) {
@@ -123,15 +122,15 @@ app.all('/:resource?/:id?/:subresource?', (req, res) => {
         } else {
           let data = [...db[resource]]
 
-          // Basic filtering, sorting, pagination
-          const queryParams = new URL(url, `http://${req.headers.host || 'localhost'}`).searchParams
+          // Parse query parameters correctly
+          const queryParams = new URLSearchParams(url.split('?')[1] || '')
           
+          // Apply filtering
           for (const [key, value] of queryParams.entries()) {
             if (key !== '_limit' && key !== '_page' && key !== '_sort' && key !== '_order') {
               data = data.filter(item => {
                 // Special handling for searching bookmarks within users
                 if (resource === 'users' && key === 'title') {
-                  // If title is empty, don't filter
                   if (value.trim() === '') {
                     return true
                   }
@@ -147,26 +146,28 @@ app.all('/:resource?/:id?/:subresource?', (req, res) => {
                 }
                 
                 // Regular filtering for other resources
-                if (typeof item[key] === 'string') {
-                  // Handle starts-with search for title, but skip if value is empty
-                  if (key === 'title') {
-                    // If title is empty, don't filter (return all)
+                if (item[key] !== undefined && item[key] !== null) {
+                  if (typeof item[key] === 'string') {
+                    if (key === 'title') {
+                      if (value.trim() === '') {
+                        return true
+                      }
+                      return item[key].toLowerCase().startsWith(value.toLowerCase())
+                    }
+                    
                     if (value.trim() === '') {
                       return true
                     }
-                    return item[key].toLowerCase().startsWith(value.toLowerCase())
+                    return item[key].toLowerCase().includes(value.toLowerCase())
                   }
-                  // Skip filtering if value is empty for other string fields
-                  if (value.trim() === '') {
-                    return true
-                  }
-                  return item[key].toLowerCase().includes(value.toLowerCase())
+                  return item[key] == value
                 }
-                return item[key] == value
+                return false
               })
             }
           }
 
+          // Apply sorting
           const sortBy = queryParams.get('_sort')
           const order = queryParams.get('_order') || 'asc'
           if (sortBy) {
@@ -178,6 +179,7 @@ app.all('/:resource?/:id?/:subresource?', (req, res) => {
             })
           }
 
+          // Apply pagination
           const limit = parseInt(queryParams.get('_limit')) || data.length
           const page = parseInt(queryParams.get('_page')) || 1
           const startIndex = (page - 1) * limit
@@ -260,5 +262,4 @@ app.all('/:resource?/:id?/:subresource?', (req, res) => {
 // Start server on 0.0.0.0 for Railway
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`Server running on port ${PORT}`)
-  console.log(`API available at: http://0.0.0.0:${PORT}`)
 })
