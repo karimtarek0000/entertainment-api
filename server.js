@@ -47,10 +47,8 @@ function filterCollection(data, queryParams) {
       if (!(key in item) || item[key] == null) return false
       const v = item[key]
       if (typeof v === 'string') {
-        if (key === 'title') {
-          return v.toLowerCase().startsWith(value.toLowerCase())
-        }
-        return v.toLowerCase().includes(value.toLowerCase())
+        // search by prefix for all string keys
+        return v.toLowerCase().startsWith(value.toLowerCase())
       }
       return v == value
     })
@@ -77,29 +75,17 @@ function applySortPaginate(data, queryParams) {
 
 // Unified route
 app.all('/:resource?/:id?/:subresource?', (req, res) => {
-  const { method, body } = req
-  const urlParts = req.path.split('/').filter(Boolean)
-
+  const { url, method, body } = req
+  const urlParts = url.split('?')[0].split('/').filter(Boolean)
   try {
     const db = readDB()
 
     if (method === 'GET') {
-      const queryParams = new URLSearchParams(req.query || {})
-
-      // /?title=...
-      if (urlParts.length === 0) {
-        const result = {}
-        for (const [resource, arr] of Object.entries(db)) {
-          if (!Array.isArray(arr)) continue
-          let data = [...arr]
-          data = filterCollection(data, queryParams)
-          data = applySortPaginate(data, queryParams)
-          result[resource] = data
-        }
-        return res.json(result)
-      }
+      if (urlParts.length === 0) return res.json(db)
 
       const [resource, id, subresource] = urlParts
+      const queryParams = new URLSearchParams(url.split('?')[1] || '')
+
       if (!db[resource]) return res.status(404).json({ error: 'Resource not found' })
 
       // /users/:id/bookmarks
@@ -121,18 +107,6 @@ app.all('/:resource?/:id?/:subresource?', (req, res) => {
 
       // /resource
       let data = [...db[resource]]
-
-      // Special: users?title= (search inside bookmarks' title)
-      const titleQ = queryParams.get('title')
-      if (resource === 'users' && titleQ && titleQ.trim() !== '') {
-        const q = titleQ.trim().toLowerCase()
-        data = data.filter(u =>
-          Array.isArray(u.bookmarks) &&
-          u.bookmarks.some(b => b.title && b.title.toLowerCase().startsWith(q))
-        )
-        queryParams.delete('title')
-      }
-
       data = filterCollection(data, queryParams)
       data = applySortPaginate(data, queryParams)
       return res.json(data)
