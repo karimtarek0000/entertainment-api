@@ -40,20 +40,23 @@ const SPECIAL = new Set(['_limit','_page','_sort','_order'])
 
 function filterCollection(data, queryParams) {
   for (const [key, raw] of queryParams.entries()) {
-    if (SPECIAL.has(key)) continue
-    const value = raw.trim()
-    if (value === '') continue
+    if (SPECIAL.has(key)) continue;
+
+    const value = raw.trim(); // Trim the query parameter value
+    if (value === '') continue;
+
     data = data.filter(item => {
-      if (!(key in item) || item[key] == null) return false
-      const v = item[key]
+      if (!(key in item) || item[key] == null) return false;
+
+      const v = item[key]; // Current field value
       if (typeof v === 'string') {
-        // search by prefix for all string keys
-        return v.toLowerCase().startsWith(value.toLowerCase())
+        // Normalize both strings and check if the value starts with the query
+        return v.trim().toLowerCase().startsWith(value.toLowerCase());
       }
-      return v == value
-    })
+      return v == value; // Compare directly for non-string values
+    });
   }
-  return data
+  return data;
 }
 
 function applySortPaginate(data, queryParams) {
